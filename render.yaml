@@ -1,0 +1,15 @@
+# Exported from Render on 2025-04-16T12:13:39Z
+services:
+- type: web
+  name: SecurScan
+  runtime: node
+  repo: https://github.com/Dynamo14324/SecurScan
+  plan: free
+  envVars:
+  - key: npm_install
+    sync: false
+  region: virginia
+  buildCommand: yarn
+  startCommand: npm install
+  rootDir: docs
+version: "1"

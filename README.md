@@ -69,7 +69,7 @@ See the [Installation Guide](docs/installation_guide.md) for detailed instructio
 Quick start with Docker:
 
 ```bash
-git clone https://github.com/dynamo14324/securscan.git
+git clone https://github.com/securscan/securscan.git
 cd securscan
 docker-compose up -d
 ```

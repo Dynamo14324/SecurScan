@@ -541,4 +541,535 @@ class ApiEndpointDiscovery extends EventEmitter {
   /**
    * Try common API paths
    * @param {string} baseUrl - Base URL of the target
-(Content truncated due to size limit. Use line ranges to read in chunks)
+   * @returns {Promise<void>}
+   */
+  async tryCommonApiPaths(baseUrl) {
+    const commonApiPaths = [
+      '/api',
+      '/api/v1',
+      '/api/v2',
+      '/api/v3',
+      '/rest',
+      '/rest/v1',
+      '/rest/v2',
+      '/graphql',
+      '/gql',
+      '/query',
+      '/service',
+      '/services',
+      '/ajax',
+      '/json',
+      '/rpc',
+      '/soap',
+      '/ws',
+      '/swagger',
+      '/swagger.json',
+      '/swagger/v1/swagger.json',
+      '/api-docs',
+      '/api-docs.json',
+      '/openapi',
+      '/openapi.json',
+      '/spec',
+      '/spec.json'
+    ];
+    
+    for (const path of commonApiPaths) {
+      const url = new URL(path, baseUrl).toString();
+      
+      if (this.visited.has(url)) {
+        continue;
+      }
+      
+      try {
+        const response = await axios({
+          method: 'GET',
+          url: url,
+          timeout: this.options.timeout,
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': this.options.userAgent,
+            'Accept': 'application/json, text/plain, */*'
+          }
+        });
+        
+        // Mark as visited
+        this.visited.add(url);
+        
+        // Check if it's an API endpoint
+        if (response.status === 200 || response.status === 401 || response.status === 403) {
+          const contentType = response.headers['content-type'] || '';
+          
+          if (contentType.includes('application/json') || 
+              contentType.includes('application/xml') || 
+              contentType.includes('text/xml')) {
+            this.addApiEndpoint(url, 'GET');
+            
+            // Try other HTTP methods
+            await this.tryOtherHttpMethods(url);
+          }
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    }
+  }
+
+  /**
+   * Try other HTTP methods on an API endpoint
+   * @param {string} url - API endpoint URL
+   * @returns {Promise<void>}
+   */
+  async tryOtherHttpMethods(url) {
+    for (const method of this.httpMethods) {
+      if (method === 'GET') {
+        continue; // Already tried GET
+      }
+      
+      try {
+        const response = await axios({
+          method: method,
+          url: url,
+          timeout: this.options.timeout,
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': this.options.userAgent,
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json'
+          },
+          data: method !== 'HEAD' && method !== 'OPTIONS' ? {} : undefined
+        });
+        
+        // Check if the method is supported
+        if (response.status !== 404 && response.status !== 405) {
+          this.addApiEndpoint(url, method);
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    }
+  }
+
+  /**
+   * Discover GraphQL endpoints
+   * @param {string} baseUrl - Base URL of the target
+   * @returns {Promise<void>}
+   */
+  async discoverGraphQL(baseUrl) {
+    const graphqlPaths = [
+      '/graphql',
+      '/gql',
+      '/api/graphql',
+      '/api/gql',
+      '/v1/graphql',
+      '/v2/graphql',
+      '/query',
+      '/graphiql'
+    ];
+    
+    for (const path of graphqlPaths) {
+      const url = new URL(path, baseUrl).toString();
+      
+      if (this.visited.has(url)) {
+        continue;
+      }
+      
+      try {
+        // Try introspection query
+        const introspectionQuery = {
+          query: `
+            {
+              __schema {
+                queryType {
+                  name
+                }
+              }
+            }
+          `
+        };
+        
+        const response = await axios({
+          method: 'POST',
+          url: url,
+          timeout: this.options.timeout,
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': this.options.userAgent,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          data: introspectionQuery
+        });
+        
+        // Mark as visited
+        this.visited.add(url);
+        
+        // Check if it's a GraphQL endpoint
+        if (response.status === 200 && 
+            response.data && 
+            response.data.data && 
+            response.data.data.__schema) {
+          this.addApiEndpoint(url, 'POST', {
+            type: 'graphql',
+            schema: response.data.data.__schema
+          });
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    }
+  }
+
+  /**
+   * Discover Swagger/OpenAPI endpoints
+   * @param {string} baseUrl - Base URL of the target
+   * @returns {Promise<void>}
+   */
+  async discoverSwagger(baseUrl) {
+    const swaggerPaths = [
+      '/swagger',
+      '/swagger.json',
+      '/swagger/v1/swagger.json',
+      '/swagger/v2/swagger.json',
+      '/api-docs',
+      '/api-docs.json',
+      '/api/swagger',
+      '/api/swagger.json',
+      '/api/docs',
+      '/api/docs.json'
+    ];
+    
+    for (const path of swaggerPaths) {
+      const url = new URL(path, baseUrl).toString();
+      
+      if (this.visited.has(url)) {
+        continue;
+      }
+      
+      try {
+        const response = await axios({
+          method: 'GET',
+          url: url,
+          timeout: this.options.timeout,
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': this.options.userAgent,
+            'Accept': 'application/json'
+          }
+        });
+        
+        // Mark as visited
+        this.visited.add(url);
+        
+        // Check if it's a Swagger/OpenAPI endpoint
+        if (response.status === 200 && 
+            response.data && 
+            (response.data.swagger || response.data.openapi)) {
+          this.addApiEndpoint(url, 'GET', {
+            type: 'swagger',
+            spec: response.data
+          });
+          
+          // Extract API endpoints from Swagger/OpenAPI spec
+          this.extractApiEndpointsFromSwagger(response.data, baseUrl);
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    }
+  }
+
+  /**
+   * Discover OpenAPI endpoints
+   * @param {string} baseUrl - Base URL of the target
+   * @returns {Promise<void>}
+   */
+  async discoverOpenAPI(baseUrl) {
+    const openApiPaths = [
+      '/openapi',
+      '/openapi.json',
+      '/openapi.yaml',
+      '/api/openapi',
+      '/api/openapi.json',
+      '/api/openapi.yaml',
+      '/spec',
+      '/spec.json',
+      '/spec.yaml'
+    ];
+    
+    for (const path of openApiPaths) {
+      const url = new URL(path, baseUrl).toString();
+      
+      if (this.visited.has(url)) {
+        continue;
+      }
+      
+      try {
+        const response = await axios({
+          method: 'GET',
+          url: url,
+          timeout: this.options.timeout,
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': this.options.userAgent,
+            'Accept': 'application/json, application/yaml'
+          }
+        });
+        
+        // Mark as visited
+        this.visited.add(url);
+        
+        // Check if it's an OpenAPI endpoint
+        if (response.status === 200 && 
+            response.data && 
+            response.data.openapi) {
+          this.addApiEndpoint(url, 'GET', {
+            type: 'openapi',
+            spec: response.data
+          });
+          
+          // Extract API endpoints from OpenAPI spec
+          this.extractApiEndpointsFromOpenAPI(response.data, baseUrl);
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    }
+  }
+
+  /**
+   * Extract API endpoints from Swagger/OpenAPI spec
+   * @param {Object} spec - Swagger/OpenAPI spec
+   * @param {string} baseUrl - Base URL of the target
+   */
+  extractApiEndpointsFromSwagger(spec, baseUrl) {
+    try {
+      const basePath = spec.basePath || '';
+      const host = spec.host || new URL(baseUrl).host;
+      const schemes = spec.schemes || [new URL(baseUrl).protocol.replace(':', '')];
+      
+      // Extract paths
+      if (spec.paths) {
+        for (const path in spec.paths) {
+          for (const method in spec.paths[path]) {
+            if (this.httpMethods.includes(method.toUpperCase())) {
+              for (const scheme of schemes) {
+                const url = `${scheme}://${host}${basePath}${path}`;
+                this.addApiEndpoint(url, method.toUpperCase(), {
+                  type: 'swagger',
+                  operation: spec.paths[path][method]
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.emit('error', {
+        error: `Error extracting API endpoints from Swagger spec: ${error.message}`
+      });
+    }
+  }
+
+  /**
+   * Extract API endpoints from OpenAPI spec
+   * @param {Object} spec - OpenAPI spec
+   * @param {string} baseUrl - Base URL of the target
+   */
+  extractApiEndpointsFromOpenAPI(spec, baseUrl) {
+    try {
+      // Extract servers
+      const servers = spec.servers || [{ url: baseUrl }];
+      
+      // Extract paths
+      if (spec.paths) {
+        for (const path in spec.paths) {
+          for (const method in spec.paths[path]) {
+            if (this.httpMethods.includes(method.toUpperCase())) {
+              for (const server of servers) {
+                const serverUrl = server.url.endsWith('/') ? server.url.slice(0, -1) : server.url;
+                const pathStr = path.startsWith('/') ? path : `/${path}`;
+                const url = `${serverUrl}${pathStr}`;
+                
+                this.addApiEndpoint(url, method.toUpperCase(), {
+                  type: 'openapi',
+                  operation: spec.paths[path][method]
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.emit('error', {
+        error: `Error extracting API endpoints from OpenAPI spec: ${error.message}`
+      });
+    }
+  }
+
+  /**
+   * Check if a URL is an API endpoint
+   * @param {string} url - URL to check
+   * @returns {boolean} - True if the URL is an API endpoint
+   */
+  isApiEndpoint(url) {
+    try {
+      const parsedUrl = new URL(url);
+      const path = parsedUrl.pathname;
+      
+      return this.isApiEndpointPath(path);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Check if a path is an API endpoint path
+   * @param {string} path - Path to check
+   * @returns {boolean} - True if the path is an API endpoint path
+   */
+  isApiEndpointPath(path) {
+    return this.options.apiPatterns.some(pattern => path.includes(pattern));
+  }
+
+  /**
+   * Add an API endpoint to the list
+   * @param {string} url - API endpoint URL
+   * @param {string} method - HTTP method
+   * @param {Object} metadata - Additional metadata
+   */
+  addApiEndpoint(url, method, metadata = {}) {
+    // Check if the endpoint already exists
+    const existingEndpoint = this.apiEndpoints.find(endpoint => 
+      endpoint.url === url && endpoint.method === method
+    );
+    
+    if (existingEndpoint) {
+      // Update metadata if provided
+      if (Object.keys(metadata).length > 0) {
+        existingEndpoint.metadata = {
+          ...existingEndpoint.metadata,
+          ...metadata
+        };
+      }
+      
+      return;
+    }
+    
+    // Add new endpoint
+    this.apiEndpoints.push({
+      url: url,
+      method: method,
+      metadata: metadata,
+      timestamp: Date.now()
+    });
+    
+    this.emit('endpointDiscovered', {
+      url: url,
+      method: method,
+      metadata: metadata
+    });
+  }
+
+  /**
+   * Resolve a relative URL to an absolute URL
+   * @param {string} relativeUrl - Relative URL
+   * @param {string} currentUrl - Current URL
+   * @param {string} baseUrl - Base URL of the target
+   * @returns {string|null} - Absolute URL or null if invalid
+   */
+  resolveUrl(relativeUrl, currentUrl, baseUrl) {
+    try {
+      // Skip empty URLs
+      if (!relativeUrl) {
+        return null;
+      }
+      
+      // Skip URLs with invalid protocols
+      if (relativeUrl.startsWith('javascript:') || 
+          relativeUrl.startsWith('mailto:') || 
+          relativeUrl.startsWith('tel:') || 
+          relativeUrl.startsWith('data:') || 
+          relativeUrl.startsWith('#')) {
+        return null;
+      }
+      
+      // Resolve the URL
+      const absoluteUrl = new URL(relativeUrl, currentUrl).toString();
+      
+      // Skip URLs from different domains
+      if (!absoluteUrl.startsWith(baseUrl)) {
+        return null;
+      }
+      
+      // Skip URLs with fragments
+      const parsedUrl = new URL(absoluteUrl);
+      parsedUrl.hash = '';
+      
+      return parsedUrl.toString();
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Remove duplicate endpoints from the list
+   * @param {Array} endpoints - List of endpoints
+   * @returns {Array} - List of unique endpoints
+   */
+  removeDuplicateEndpoints(endpoints) {
+    const uniqueEndpoints = [];
+    const seen = new Set();
+    
+    for (const endpoint of endpoints) {
+      const key = `${endpoint.method}:${endpoint.url}`;
+      
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueEndpoints.push(endpoint);
+      }
+    }
+    
+    return uniqueEndpoints;
+  }
+
+  /**
+   * Log API endpoints to file
+   * @param {string} startUrl - Start URL
+   */
+  logApiEndpoints(startUrl) {
+    try {
+      const logFile = path.join(
+        this.options.logDirectory,
+        `api_endpoints_${Date.now()}.json`
+      );
+      
+      const logData = {
+        startUrl: startUrl,
+        timestamp: Date.now(),
+        endpointsCount: this.apiEndpoints.length,
+        endpoints: this.apiEndpoints
+      };
+      
+      fs.writeFileSync(logFile, JSON.stringify(logData, null, 2));
+    } catch (error) {
+      console.error('Error logging API endpoints:', error);
+    }
+  }
+
+  /**
+   * Get discovered API endpoints
+   * @returns {Array} - Array of discovered API endpoints
+   */
+  getApiEndpoints() {
+    return this.apiEndpoints;
+  }
+
+  /**
+   * Clear discovered API endpoints
+   */
+  clearApiEndpoints() {
+    this.apiEndpoints = [];
+  }
+}
+
+module.exports = ApiEndpointDiscovery;

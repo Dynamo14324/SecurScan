@@ -555,5 +555,22 @@ function generateAuthBypassPayloads() {
     "access_level=9",
     
     // HTTP verb tampering
-    "X-HTTP-Method-Override: PUT"
-(Content truncated due to size limit. Use line ranges to read in chunks)
+    "X-HTTP-Method-Override: PUT",
+    "X-HTTP-Method-Override: DELETE",
+    
+    // Host header manipulation
+    "Host: internal-admin.example.com"
+  ];
+}
+
+module.exports = {
+  generateSqlInjectionPayloads,
+  generateXssPayloads,
+  generateCsrfPayloads,
+  generateSsrfPayloads,
+  generateXxePayloads,
+  generateCommandInjectionPayloads,
+  generateFileInclusionPayloads,
+  generateDeserializationPayloads,
+  generateAuthBypassPayloads
+};

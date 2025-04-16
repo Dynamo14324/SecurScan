@@ -506,5 +506,659 @@ The testing environment supports multiple technology stacks:
 
 The test case management system:
 
-- Implements vers
-(Content truncated due to size limit. Use line ranges to read in chunks)
+- Implements version control for test cases
+- Organizes test cases by vulnerability category
+- Provides templates for creating new test cases
+- Supports importing/exporting test cases
+- Includes search and filtering capabilities
+
+## API Reference <a name="api-reference"></a>
+
+### Authentication API
+
+#### POST /api/auth/login
+- **Description**: Authenticates a user and returns a JWT token
+- **Request Body**: `{ email: string, password: string }`
+- **Response**: `{ user: User, token: string }`
+
+#### POST /api/auth/register
+- **Description**: Registers a new user
+- **Request Body**: `{ name: string, email: string, password: string }`
+- **Response**: `{ user: User, token: string }`
+
+#### GET /api/auth/me
+- **Description**: Returns the current authenticated user
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ user: User }`
+
+### Scans API
+
+#### GET /api/scans
+- **Description**: Returns all scans for the authenticated user
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Scan[]`
+
+#### GET /api/scans/:id
+- **Description**: Returns a specific scan by ID
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Scan`
+
+#### POST /api/scans
+- **Description**: Creates a new scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `ScanConfig`
+- **Response**: `Scan`
+
+#### DELETE /api/scans/:id
+- **Description**: Deletes a scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ message: string }`
+
+#### PUT /api/scans/:id/pause
+- **Description**: Pauses a running scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Scan`
+
+#### PUT /api/scans/:id/resume
+- **Description**: Resumes a paused scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Scan`
+
+#### PUT /api/scans/:id/stop
+- **Description**: Stops a scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Scan`
+
+### Vulnerabilities API
+
+#### GET /api/vulnerabilities/scan/:scanId
+- **Description**: Returns all vulnerabilities for a specific scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Vulnerability[]`
+
+#### GET /api/vulnerabilities/:id
+- **Description**: Returns a specific vulnerability by ID
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Vulnerability`
+
+#### POST /api/vulnerabilities/:id/verify
+- **Description**: Verifies a vulnerability
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ message: string, status: string }`
+
+#### PUT /api/vulnerabilities/:id
+- **Description**: Updates a vulnerability
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `Partial<Vulnerability>`
+- **Response**: `Vulnerability`
+
+#### GET /api/vulnerabilities/stats/summary
+- **Description**: Returns vulnerability statistics
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `VulnerabilityStats`
+
+### Reports API
+
+#### GET /api/reports/scan/:scanId
+- **Description**: Returns the report for a specific scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Report`
+
+#### GET /api/reports/:id
+- **Description**: Returns a specific report by ID
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Report`
+
+#### POST /api/reports/generate/:scanId
+- **Description**: Generates a new report for a scan
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ format: string }`
+- **Response**: `{ message: string, report: Report }`
+
+#### GET /api/reports/:id/download/:format
+- **Description**: Downloads a report in a specific format
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ message: string, downloadUrl: string }`
+
+#### GET /api/reports
+- **Description**: Returns all reports for the authenticated user
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Report[]`
+
+#### DELETE /api/reports/:id
+- **Description**: Deletes a report
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ message: string }`
+
+### Users API
+
+#### GET /api/users
+- **Description**: Returns all users (admin only)
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `User[]`
+
+#### GET /api/users/:id
+- **Description**: Returns a specific user by ID
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `User`
+
+#### POST /api/users
+- **Description**: Creates a new user (admin only)
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ name: string, email: string, password: string, role: string }`
+- **Response**: `User`
+
+#### PUT /api/users/:id
+- **Description**: Updates a user
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `Partial<User>`
+- **Response**: `User`
+
+#### DELETE /api/users/:id
+- **Description**: Deletes a user
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ message: string }`
+
+#### PUT /api/users/:id/password
+- **Description**: Changes a user's password
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ currentPassword: string, newPassword: string }`
+- **Response**: `{ message: string }`
+
+### Projects API
+
+#### GET /api/projects
+- **Description**: Returns all projects for the authenticated user
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Project[]`
+
+#### GET /api/projects/:id
+- **Description**: Returns a specific project by ID
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Project`
+
+#### POST /api/projects
+- **Description**: Creates a new project
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ name: string, description: string }`
+- **Response**: `Project`
+
+#### PUT /api/projects/:id
+- **Description**: Updates a project
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `Partial<Project>`
+- **Response**: `Project`
+
+#### DELETE /api/projects/:id
+- **Description**: Deletes a project
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ message: string }`
+
+#### POST /api/projects/:id/members
+- **Description**: Adds a member to a project
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ userId: string }`
+- **Response**: `Project`
+
+#### DELETE /api/projects/:id/members/:userId
+- **Description**: Removes a member from a project
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Project`
+
+#### POST /api/projects/:id/scans
+- **Description**: Adds a scan to a project
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ scanId: string }`
+- **Response**: `Project`
+
+#### DELETE /api/projects/:id/scans/:scanId
+- **Description**: Removes a scan from a project
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `Project`
+
+### Test Cases API
+
+#### GET /api/test-cases
+- **Description**: Returns all test cases
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `TestCase[]`
+
+#### GET /api/test-cases/category/:category
+- **Description**: Returns test cases by category
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `TestCase[]`
+
+#### GET /api/test-cases/:id
+- **Description**: Returns a specific test case by ID
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `TestCase`
+
+#### POST /api/test-cases
+- **Description**: Creates a new test case
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `TestCaseData`
+- **Response**: `TestCase`
+
+#### POST /api/test-cases/from-template
+- **Description**: Creates a test case from a template
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ templateName: string, overrides: Partial<TestCaseData> }`
+- **Response**: `TestCase`
+
+#### PUT /api/test-cases/:id
+- **Description**: Updates a test case
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `Partial<TestCase>`
+- **Response**: `TestCase`
+
+#### DELETE /api/test-cases/:id
+- **Description**: Deletes a test case
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `{ message: string }`
+
+#### GET /api/test-cases/:id/history
+- **Description**: Returns the history of a test case
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `TestCaseHistory[]`
+
+#### POST /api/test-cases/:id/restore/:version
+- **Description**: Restores a previous version of a test case
+- **Headers**: `Authorization: Bearer <token>`
+- **Response**: `TestCase`
+
+#### POST /api/test-cases/search
+- **Description**: Searches for test cases
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `SearchCriteria`
+- **Response**: `TestCase[]`
+
+#### POST /api/test-cases/export
+- **Description**: Exports test cases
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ testCases: string[], format: string }`
+- **Response**: `{ message: string, exportUrl: string }`
+
+#### POST /api/test-cases/import
+- **Description**: Imports test cases
+- **Headers**: `Authorization: Bearer <token>`
+- **Request Body**: `{ importData: ImportData }`
+- **Response**: `{ message: string, importedCount: number }`
+
+## Database Schema <a name="database-schema"></a>
+
+### User Schema
+
+```javascript
+{
+  id: String,
+  name: String,
+  email: String,
+  password: String,
+  role: String,
+  createdAt: Date,
+  lastLogin: Date
+}
+```
+
+### Scan Schema
+
+```javascript
+{
+  id: String,
+  target: String,
+  targetName: String,
+  targetDescription: String,
+  date: String,
+  status: String,
+  progress: Number,
+  duration: String,
+  userId: String,
+  scanType: String,
+  vulnerabilityTypes: [String],
+  scanDepth: Number,
+  crawlOptions: {
+    followLinks: Boolean,
+    maxPages: Number
+  },
+  authConfig: {
+    type: String,
+    username: String,
+    password: String,
+    loginUrl: String
+  },
+  requestConfig: {
+    requestsPerSecond: Number,
+    timeout: Number,
+    followRedirects: Boolean,
+    userAgent: String,
+    headers: [Object],
+    cookies: [Object],
+    proxySettings: {
+      useProxy: Boolean,
+      proxyUrl: String
+    }
+  },
+  summary: {
+    Critical: Number,
+    High: Number,
+    Medium: Number,
+    Low: Number,
+    Info: Number
+  }
+}
+```
+
+### Vulnerability Schema
+
+```javascript
+{
+  id: String,
+  scanId: String,
+  name: String,
+  severity: String,
+  location: String,
+  parameter: String,
+  description: String,
+  evidence: String,
+  cvss: Number,
+  cwe: String,
+  remediation: String,
+  poc: String,
+  verified: Boolean,
+  status: String,
+  assignedTo: String,
+  notes: [
+    {
+      text: String,
+      author: String,
+      date: Date
+    }
+  ],
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Report Schema
+
+```javascript
+{
+  id: String,
+  scanId: String,
+  target: String,
+  date: String,
+  summary: {
+    Critical: Number,
+    High: Number,
+    Medium: Number,
+    Low: Number,
+    Info: Number
+  },
+  executiveSummary: String,
+  riskRating: String,
+  formats: [String],
+  generatedBy: String,
+  createdAt: Date
+}
+```
+
+### Project Schema
+
+```javascript
+{
+  id: String,
+  name: String,
+  description: String,
+  createdAt: String,
+  updatedAt: String,
+  owner: String,
+  members: [String],
+  scans: [String],
+  status: String
+}
+```
+
+### TestCase Schema
+
+```javascript
+{
+  id: String,
+  name: String,
+  category: String,
+  description: String,
+  steps: [String],
+  payloads: [String],
+  expectedResults: String,
+  created: String,
+  updated: String,
+  version: Number
+}
+```
+
+## Deployment Guide <a name="deployment-guide"></a>
+
+### Prerequisites
+
+- Node.js 16+ and npm
+- MongoDB 4.4+
+- Docker and Docker Compose (for containerized deployment)
+- Git
+
+### Local Development Setup
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/your-org/securscan.git
+   cd securscan
+   ```
+
+2. Install backend dependencies:
+   ```
+   cd backend
+   npm install
+   ```
+
+3. Install frontend dependencies:
+   ```
+   cd ../frontend
+   npm install
+   ```
+
+4. Set up environment variables:
+   - Create `.env` file in the backend directory
+   - Add required variables (see `.env.example`)
+
+5. Start MongoDB:
+   ```
+   mongod --dbpath /path/to/data
+   ```
+
+6. Start the backend server:
+   ```
+   cd ../backend
+   npm run dev
+   ```
+
+7. Start the frontend development server:
+   ```
+   cd ../frontend
+   npm start
+   ```
+
+8. Access the application at `http://localhost:3000`
+
+### Docker Deployment
+
+1. Build the Docker images:
+   ```
+   docker-compose build
+   ```
+
+2. Start the containers:
+   ```
+   docker-compose up -d
+   ```
+
+3. Access the application at `http://localhost:8080`
+
+### Production Deployment
+
+#### Server Requirements
+
+- Linux server (Ubuntu 20.04 LTS recommended)
+- 4+ CPU cores
+- 8+ GB RAM
+- 50+ GB storage
+- HTTPS certificate
+
+#### Deployment Steps
+
+1. Set up the server:
+   ```
+   # Update packages
+   sudo apt update && sudo apt upgrade -y
+   
+   # Install dependencies
+   sudo apt install -y nodejs npm mongodb docker.io docker-compose nginx
+   
+   # Start and enable MongoDB
+   sudo systemctl start mongodb
+   sudo systemctl enable mongodb
+   ```
+
+2. Configure Nginx:
+   ```
+   # Create Nginx configuration
+   sudo nano /etc/nginx/sites-available/securscan
+   
+   # Add configuration (see nginx.conf example)
+   
+   # Enable the site
+   sudo ln -s /etc/nginx/sites-available/securscan /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl restart nginx
+   ```
+
+3. Deploy the application:
+   ```
+   # Clone the repository
+   git clone https://github.com/your-org/securscan.git
+   cd securscan
+   
+   # Set up environment variables
+   cp .env.example .env
+   nano .env
+   
+   # Build and start the containers
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+4. Set up SSL with Let's Encrypt:
+   ```
+   sudo apt install -y certbot python3-certbot-nginx
+   sudo certbot --nginx -d yourdomain.com
+   ```
+
+5. Set up automatic updates:
+   ```
+   # Create update script
+   nano update.sh
+   
+   # Add update commands
+   #!/bin/bash
+   cd /path/to/securscan
+   git pull
+   docker-compose -f docker-compose.prod.yml down
+   docker-compose -f docker-compose.prod.yml up -d
+   
+   # Make executable
+   chmod +x update.sh
+   
+   # Add to crontab for weekly updates
+   crontab -e
+   # Add: 0 0 * * 0 /path/to/securscan/update.sh
+   ```
+
+### Scaling Considerations
+
+For high-load environments, consider:
+
+1. Horizontal scaling with multiple application instances
+2. MongoDB replication for database redundancy
+3. Load balancing with Nginx or a cloud load balancer
+4. Redis for caching and session storage
+5. Separate servers for the scanning engine and web interface
+
+## Security Considerations <a name="security-considerations"></a>
+
+### Application Security
+
+- All API endpoints require authentication
+- JWT tokens with appropriate expiration
+- HTTPS for all communications
+- Input validation and sanitization
+- Output encoding to prevent XSS
+- CSRF protection
+- Content Security Policy (CSP)
+- Rate limiting to prevent abuse
+- Secure password storage with bcrypt
+
+### Operational Security
+
+- Regular security updates for all components
+- Principle of least privilege for all accounts
+- Secure configuration of all services
+- Firewall rules to restrict access
+- Intrusion detection and prevention
+- Regular security scanning of the platform itself
+- Audit logging for all sensitive operations
+
+### Data Security
+
+- Encryption of sensitive data at rest
+- Secure handling of credentials and tokens
+- Data minimization principles
+- Regular backups with encryption
+- Secure deletion of temporary files
+- Access controls for all data
+
+### Scan Engine Security
+
+- Isolation of scanning activities
+- Resource limits to prevent DoS
+- Safe payload handling
+- Throttling to prevent target overload
+- Verification before executing potentially harmful tests
+- Secure handling of evidence and findings
+
+## Performance Optimization <a name="performance-optimization"></a>
+
+### Backend Optimization
+
+- Database indexing for frequently queried fields
+- Query optimization for complex operations
+- Caching of expensive computations
+- Asynchronous processing for long-running tasks
+- Pagination for large result sets
+- Compression of HTTP responses
+- Connection pooling for database access
+
+### Frontend Optimization
+
+- Code splitting for faster initial load
+- Lazy loading of components
+- Memoization of expensive calculations
+- Virtual scrolling for large lists
+- Image optimization and lazy loading
+- Minification and bundling of assets
+- Service workers for offline support
+
+### Scan Engine Optimization
+
+- Parallel scanning where appropriate
+- Intelligent crawling to minimize redundant requests
+- Caching of static resources
+- Adaptive throttling based on target response
+- Prioritization of high-value tests
+- Early termination of non-applicable tests
+- Resource pooling for browser instances

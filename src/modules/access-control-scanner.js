@@ -458,4 +458,131 @@ class AccessControlScanner {
       
       // HTTP methods to test
       const methods = ['GET', 'POST', 'PUT', 'DELETE'];
-(Content truncated due to size limit. Use line ranges to read in chunks)
+      
+      // Test each API endpoint with different HTTP methods
+      for (const endpoint of apiEndpoints) {
+        const url = new URL(endpoint, target.url).toString();
+        
+        for (const method of methods) {
+          try {
+            const response = await axios({
+              method: method,
+              url: url,
+              headers: {
+                'User-Agent': options.userAgent,
+                'Content-Type': 'application/json'
+              },
+              data: method !== 'GET' ? {} : undefined,
+              timeout: options.timeout,
+              validateStatus: () => true,
+              maxRedirects: options.followRedirects ? 5 : 0
+            });
+            
+            // Check if we can access the API endpoint without proper authentication
+            if (response.status === 200 || response.status === 201 || response.status === 204) {
+              findings.push({
+                type: 'missing-function-level-access-control',
+                severity: 'high',
+                confidence: 'medium',
+                url: url,
+                method: method,
+                evidence: this.extractEvidence(response),
+                description: `Missing function level access control vulnerability detected: able to access ${method} ${url} without proper authentication or authorization`,
+                remediation: 'Implement proper function level access control checks. Verify user permissions for each function call server-side.',
+                cvss: 8.0,
+                cwe: 'CWE-285'
+              });
+            }
+          } catch (error) {
+            // Ignore errors for individual endpoint tests
+            console.error(`Error testing ${method} ${url}: ${error.message}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error testing function level access control: ${error.message}`);
+    }
+    
+    return findings;
+  }
+
+  /**
+   * Generate alternative IDs for IDOR testing
+   * @param {string} id - Original ID
+   * @returns {Array} - Array of alternative IDs
+   */
+  generateAlternativeIds(id) {
+    const alternatives = [];
+    
+    // If ID is numeric
+    if (/^\d+$/.test(id)) {
+      const numId = parseInt(id, 10);
+      
+      // Add adjacent IDs
+      alternatives.push((numId - 1).toString());
+      alternatives.push((numId + 1).toString());
+      
+      // Add some common IDs
+      alternatives.push('1');
+      alternatives.push('2');
+      alternatives.push('3');
+      alternatives.push('100');
+    } else {
+      // For non-numeric IDs, try some variations
+      alternatives.push('admin');
+      alternatives.push('test');
+      alternatives.push('user');
+      alternatives.push('1');
+    }
+    
+    return alternatives;
+  }
+
+  /**
+   * Generate other user IDs for horizontal privilege escalation testing
+   * @param {string} userId - Original user ID
+   * @returns {Array} - Array of other user IDs
+   */
+  generateOtherUserIds(userId) {
+    const otherIds = [];
+    
+    // If user ID is numeric
+    if (/^\d+$/.test(userId)) {
+      const numId = parseInt(userId, 10);
+      
+      // Add adjacent user IDs
+      otherIds.push((numId - 1).toString());
+      otherIds.push((numId + 1).toString());
+      
+      // Add some common user IDs
+      otherIds.push('1');
+      otherIds.push('2');
+      otherIds.push('3');
+      otherIds.push('100');
+    } else {
+      // For non-numeric user IDs, try some variations
+      otherIds.push('admin');
+      otherIds.push('test');
+      otherIds.push('user');
+      otherIds.push('user1');
+      otherIds.push('user2');
+    }
+    
+    return otherIds;
+  }
+
+  /**
+   * Extract evidence from the response
+   * @param {Object} response - Axios response object
+   * @returns {string} - Extracted evidence
+   */
+  extractEvidence(response) {
+    const { data, status, headers } = response;
+    const responseText = typeof data === 'string' ? data : JSON.stringify(data);
+    
+    // Return a portion of the response as evidence
+    return responseText.substring(0, 200) + (responseText.length > 200 ? '...' : '');
+  }
+}
+
+module.exports = AccessControlScanner;

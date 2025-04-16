@@ -538,5 +538,289 @@ class IntelligentCrawler extends EventEmitter {
             }
           }
           
-     
-(Content truncated due to size limit. Use line ranges to read in chunks)
+          if (!clicked && element.selector) {
+            try {
+              await interactionPage.click(element.selector);
+              clicked = true;
+            } catch (error) {
+              // Element not found or not clickable
+            }
+          }
+          
+          if (clicked) {
+            // Wait for navigation or timeout
+            try {
+              await interactionPage.waitForNavigation({
+                waitUntil: 'networkidle2',
+                timeout: this.options.timeout / 2
+              });
+            } catch (error) {
+              // Navigation might not happen, that's okay
+            }
+            
+            // Wait for additional time if specified
+            if (this.options.waitTime > 0) {
+              await interactionPage.waitForTimeout(this.options.waitTime);
+            }
+            
+            // Get the new URL
+            const newUrl = await interactionPage.url();
+            
+            // If the URL changed and it's not already visited, add it to the queue
+            if (newUrl !== currentUrl && !this.visited.has(newUrl)) {
+              // Check if the new URL is within the same domain
+              const parsedNewUrl = new URL(newUrl);
+              const parsedBaseUrl = new URL(baseUrl);
+              
+              if (parsedNewUrl.hostname === parsedBaseUrl.hostname) {
+                this.queue.push({
+                  url: newUrl,
+                  depth: depth + 1,
+                  referrer: currentUrl,
+                  reason: 'interaction'
+                });
+              }
+            }
+          }
+          
+          // Close the interaction page
+          await interactionPage.close();
+        } catch (error) {
+          this.emit('error', {
+            url: currentUrl,
+            error: `Error interacting with element: ${error.message}`
+          });
+        }
+      }
+    } catch (error) {
+      this.emit('error', {
+        url: currentUrl,
+        error: `Error interacting with page: ${error.message}`
+      });
+    }
+  }
+
+  /**
+   * Fill forms on a page
+   * @param {Object} page - Puppeteer page object
+   * @param {string} currentUrl - Current URL
+   * @param {number} depth - Current depth
+   * @param {string} baseUrl - Base URL of the target
+   * @returns {Promise<void>}
+   */
+  async fillPageForms(page, currentUrl, depth, baseUrl) {
+    try {
+      // Extract forms
+      const forms = await page.evaluate(() => {
+        const results = [];
+        const formElements = document.querySelectorAll('form');
+        
+        for (let i = 0; i < formElements.length; i++) {
+          const form = formElements[i];
+          const inputs = [];
+          const formInputs = form.querySelectorAll('input, select, textarea');
+          
+          for (const input of formInputs) {
+            inputs.push({
+              name: input.name,
+              type: input.type || 'text',
+              value: input.value,
+              required: input.required
+            });
+          }
+          
+          results.push({
+            index: i,
+            action: form.action,
+            method: form.method.toUpperCase() || 'GET',
+            inputs: inputs
+          });
+        }
+        
+        return results;
+      });
+      
+      // Fill each form
+      for (const form of forms) {
+        try {
+          // Create a new page for each form to avoid state changes
+          const formPage = await this.browser.newPage();
+          
+          // Set viewport
+          await formPage.setViewport(this.options.viewport);
+          
+          // Set user agent
+          await formPage.setUserAgent(this.options.userAgent);
+          
+          // Set timeouts
+          formPage.setDefaultTimeout(this.options.timeout);
+          formPage.setDefaultNavigationTimeout(this.options.timeout);
+          
+          // Navigate to the URL
+          await formPage.goto(currentUrl, {
+            waitUntil: 'networkidle2',
+            timeout: this.options.timeout
+          });
+          
+          // Wait for additional time if specified
+          if (this.options.waitTime > 0) {
+            await formPage.waitForTimeout(this.options.waitTime);
+          }
+          
+          // Fill the form
+          await formPage.evaluate((formIndex) => {
+            const form = document.forms[formIndex];
+            if (!form) return;
+            
+            // Fill inputs
+            const inputs = form.querySelectorAll('input, textarea, select');
+            
+            for (const input of inputs) {
+              if (input.type === 'text' || input.type === 'email' || input.type === 'password' || input.type === 'search' || input.type === 'tel' || input.type === 'url' || input.type === 'number') {
+                input.value = input.type === 'email' ? 'test@example.com' : 
+                              input.type === 'password' ? 'password123' : 
+                              input.type === 'number' ? '123' : 
+                              'test';
+              } else if (input.type === 'checkbox' || input.type === 'radio') {
+                input.checked = true;
+              } else if (input.tagName === 'SELECT') {
+                if (input.options.length > 0) {
+                  input.selectedIndex = 0;
+                }
+              } else if (input.tagName === 'TEXTAREA') {
+                input.value = 'test';
+              }
+            }
+          }, form.index);
+          
+          // Submit the form
+          const navigationPromise = formPage.waitForNavigation({
+            waitUntil: 'networkidle2',
+            timeout: this.options.timeout
+          }).catch(() => {
+            // Navigation might not happen, that's okay
+          });
+          
+          await formPage.evaluate((formIndex) => {
+            const form = document.forms[formIndex];
+            if (form) {
+              form.submit();
+            }
+          }, form.index);
+          
+          // Wait for navigation or timeout
+          await navigationPromise;
+          
+          // Wait for additional time if specified
+          if (this.options.waitTime > 0) {
+            await formPage.waitForTimeout(this.options.waitTime);
+          }
+          
+          // Get the new URL
+          const newUrl = await formPage.url();
+          
+          // If the URL changed and it's not already visited, add it to the queue
+          if (newUrl !== currentUrl && !this.visited.has(newUrl)) {
+            // Check if the new URL is within the same domain
+            const parsedNewUrl = new URL(newUrl);
+            const parsedBaseUrl = new URL(baseUrl);
+            
+            if (parsedNewUrl.hostname === parsedBaseUrl.hostname) {
+              this.queue.push({
+                url: newUrl,
+                depth: depth + 1,
+                referrer: currentUrl,
+                reason: 'form'
+              });
+            }
+          }
+          
+          // Close the form page
+          await formPage.close();
+        } catch (error) {
+          this.emit('error', {
+            url: currentUrl,
+            error: `Error filling form: ${error.message}`
+          });
+        }
+      }
+    } catch (error) {
+      this.emit('error', {
+        url: currentUrl,
+        error: `Error filling page forms: ${error.message}`
+      });
+    }
+  }
+
+  /**
+   * Generate a crawl report
+   * @param {string} startUrl - Start URL
+   * @returns {Object} - Crawl report
+   */
+  generateCrawlReport(startUrl) {
+    return {
+      startUrl: startUrl,
+      timestamp: Date.now(),
+      pagesVisited: this.results.length,
+      uniqueUrls: this.visited.size,
+      pages: this.results
+    };
+  }
+
+  /**
+   * Log crawl results to file
+   * @param {Object} report - Crawl report
+   */
+  logCrawlResults(report) {
+    try {
+      const logFile = path.join(
+        this.options.logDirectory,
+        `crawl_report_${Date.now()}.json`
+      );
+      
+      fs.writeFileSync(logFile, JSON.stringify(report, null, 2));
+    } catch (error) {
+      console.error('Error logging crawl results:', error);
+    }
+  }
+
+  /**
+   * Get crawl results
+   * @returns {Array} - Array of crawl results
+   */
+  getResults() {
+    return this.results;
+  }
+
+  /**
+   * Clear crawl results
+   */
+  clearResults() {
+    this.results = [];
+    this.visited.clear();
+    this.queue = [];
+  }
+
+  /**
+   * Close the crawler
+   * @returns {Promise<void>}
+   */
+  async close() {
+    if (this.browser) {
+      // Close all pages
+      for (const page of this.pages.values()) {
+        await page.close();
+      }
+      
+      this.pages.clear();
+      
+      // Close the browser
+      await this.browser.close();
+      this.browser = null;
+      
+      this.emit('closed');
+    }
+  }
+}
+
+module.exports = IntelligentCrawler;

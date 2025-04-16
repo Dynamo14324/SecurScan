@@ -566,5 +566,120 @@ class ProxyInterceptor extends EventEmitter {
     let logs = [...this.responseLog];
     
     // Filter by URL
-    if 
-(Content truncated due to size limit. Use line ranges to read in chunks)
+    if (options.url) {
+      logs = logs.filter(log => log.url.includes(options.url));
+    }
+    
+    // Filter by method
+    if (options.method) {
+      logs = logs.filter(log => log.method === options.method);
+    }
+    
+    // Filter by status
+    if (options.status) {
+      logs = logs.filter(log => log.status === options.status);
+    }
+    
+    // Filter by content type
+    if (options.contentType) {
+      logs = logs.filter(log => log.contentType && log.contentType.includes(options.contentType));
+    }
+    
+    // Filter by time range
+    if (options.startTime) {
+      logs = logs.filter(log => log.timestamp >= options.startTime);
+    }
+    
+    if (options.endTime) {
+      logs = logs.filter(log => log.timestamp <= options.endTime);
+    }
+    
+    // Limit number of logs
+    if (options.limit) {
+      logs = logs.slice(0, options.limit);
+    }
+    
+    return logs;
+  }
+
+  /**
+   * Get all traffic logs
+   * @param {Object} options - Options for filtering logs
+   * @returns {Array} - Array of traffic logs
+   */
+  getTrafficLogs(options = {}) {
+    let logs = [...this.trafficLog];
+    
+    // Filter by type
+    if (options.type) {
+      logs = logs.filter(log => log.type === options.type);
+    }
+    
+    // Filter by URL
+    if (options.url) {
+      logs = logs.filter(log => log.url.includes(options.url));
+    }
+    
+    // Filter by method
+    if (options.method) {
+      logs = logs.filter(log => log.method === options.method);
+    }
+    
+    // Filter by time range
+    if (options.startTime) {
+      logs = logs.filter(log => log.timestamp >= options.startTime);
+    }
+    
+    if (options.endTime) {
+      logs = logs.filter(log => log.timestamp <= options.endTime);
+    }
+    
+    // Limit number of logs
+    if (options.limit) {
+      logs = logs.slice(0, options.limit);
+    }
+    
+    return logs;
+  }
+
+  /**
+   * Clear all logs
+   */
+  clearLogs() {
+    this.trafficLog = [];
+    this.requestLog = [];
+    this.responseLog = [];
+  }
+
+  /**
+   * Stop the proxy server
+   */
+  async stop() {
+    if (!this.isRunning) {
+      return;
+    }
+    
+    try {
+      await new Promise((resolve, reject) => {
+        this.server.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          
+          resolve();
+        });
+      });
+      
+      this.proxy.close();
+      
+      this.isRunning = false;
+      this.emit('stopped');
+    } catch (error) {
+      this.emit('error', error);
+      throw error;
+    }
+  }
+}
+
+module.exports = ProxyInterceptor;

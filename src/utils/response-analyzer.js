@@ -608,5 +608,13 @@ function extractEvidence(text, pattern, caseInsensitive = false) {
   
   if (index !== -1) {
     const start = Math.max(0, index - 50);
-    const end = Math.min(text.length, ind
-(Content truncated due to size limit. Use line ranges to read in chunks)
+    const end = Math.min(text.length, index + pattern.length + 50);
+    return text.substring(start, end);
+  }
+  
+  return '';
+}
+
+module.exports = {
+  analyzeResponse
+};

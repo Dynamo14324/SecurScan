@@ -584,5 +584,296 @@ class CustomScanPolicy extends EventEmitter {
     // Modify settings for thoroughness
     template.vulnerabilityChecks.sqlInjection.options.payloadLevel = 'high';
     template.vulnerabilityChecks.xss.options.payloadLevel = 'high';
-    template
-(Content truncated due to size limit. Use line ranges to read in chunks)
+    template.vulnerabilityChecks.ssrf.options.payloadLevel = 'high';
+    template.vulnerabilityChecks.xxe.options.payloadLevel = 'high';
+    template.vulnerabilityChecks.commandInjection.options.payloadLevel = 'high';
+    template.vulnerabilityChecks.fileInclusion.options.payloadLevel = 'high';
+    template.vulnerabilityChecks.insecureDeserialization.options.payloadLevel = 'high';
+    
+    // Modify technical options
+    template.technicalOptions.intelligentCrawling.options.maxDepth = 5;
+    template.technicalOptions.intelligentCrawling.options.maxPages = 200;
+    template.technicalOptions.apiEndpointDiscovery.options.maxDepth = 5;
+    template.technicalOptions.apiEndpointDiscovery.options.maxPages = 200;
+    
+    // Decrease throttling
+    template.scanThrottling.options.requestsPerSecond = 5;
+    template.scanThrottling.options.maxConcurrentRequests = 3;
+    template.scanThrottling.options.delayBetweenRequests = 200;
+    
+    return template;
+  }
+
+  /**
+   * Create a passive scan template
+   * @param {string} name - Template name
+   * @returns {Object} - Passive scan template
+   */
+  createPassiveScanTemplate(name) {
+    // Create a deep copy of the default policy
+    const template = JSON.parse(JSON.stringify(this.defaultPolicy));
+    
+    // Update ID, name, and timestamps
+    template.id = crypto.randomBytes(8).toString('hex');
+    template.name = name || 'Passive Scan Template';
+    template.description = 'Non-intrusive scan that only observes traffic without active testing';
+    template.createdAt = Date.now();
+    template.updatedAt = Date.now();
+    
+    // Disable active vulnerability checks
+    template.vulnerabilityChecks.sqlInjection.enabled = false;
+    template.vulnerabilityChecks.xss.enabled = false;
+    template.vulnerabilityChecks.csrf.enabled = false;
+    template.vulnerabilityChecks.ssrf.enabled = false;
+    template.vulnerabilityChecks.xxe.enabled = false;
+    template.vulnerabilityChecks.commandInjection.enabled = false;
+    template.vulnerabilityChecks.fileInclusion.enabled = false;
+    template.vulnerabilityChecks.insecureDeserialization.enabled = false;
+    template.vulnerabilityChecks.authBypass.enabled = false;
+    template.vulnerabilityChecks.accessControl.enabled = false;
+    
+    // Enable only passive technical options
+    template.technicalOptions.headlessBrowser.enabled = true;
+    template.technicalOptions.proxyInterception.enabled = true;
+    template.technicalOptions.httpRequestCrafting.enabled = false;
+    template.technicalOptions.javascriptAnalysis.enabled = true;
+    template.technicalOptions.apiEndpointDiscovery.enabled = true;
+    template.technicalOptions.intelligentCrawling.enabled = false;
+    template.technicalOptions.authenticationHandling.enabled = false;
+    template.technicalOptions.sessionManagement.enabled = false;
+    
+    // Modify crawling options to be passive
+    template.technicalOptions.apiEndpointDiscovery.options.maxDepth = 1;
+    
+    // Increase throttling to be gentle
+    template.scanThrottling.options.requestsPerSecond = 2;
+    template.scanThrottling.options.maxConcurrentRequests = 1;
+    template.scanThrottling.options.delayBetweenRequests = 500;
+    
+    return template;
+  }
+
+  /**
+   * Create an API scan template
+   * @param {string} name - Template name
+   * @returns {Object} - API scan template
+   */
+  createApiScanTemplate(name) {
+    // Create a deep copy of the default policy
+    const template = JSON.parse(JSON.stringify(this.defaultPolicy));
+    
+    // Update ID, name, and timestamps
+    template.id = crypto.randomBytes(8).toString('hex');
+    template.name = name || 'API Scan Template';
+    template.description = 'Optimized for testing API endpoints';
+    template.createdAt = Date.now();
+    template.updatedAt = Date.now();
+    
+    // Modify vulnerability checks for APIs
+    template.vulnerabilityChecks.xss.enabled = false;
+    template.vulnerabilityChecks.csrf.enabled = false;
+    template.vulnerabilityChecks.xss.options.testDomXss = false;
+    
+    // Modify technical options
+    template.technicalOptions.headlessBrowser.enabled = false;
+    template.technicalOptions.javascriptAnalysis.enabled = false;
+    template.technicalOptions.intelligentCrawling.enabled = false;
+    template.technicalOptions.apiEndpointDiscovery.enabled = true;
+    template.technicalOptions.apiEndpointDiscovery.options.maxDepth = 3;
+    template.technicalOptions.apiEndpointDiscovery.options.maxPages = 100;
+    
+    return template;
+  }
+
+  /**
+   * Create a web application scan template
+   * @param {string} name - Template name
+   * @returns {Object} - Web application scan template
+   */
+  createWebAppScanTemplate(name) {
+    // Create a deep copy of the default policy
+    const template = JSON.parse(JSON.stringify(this.defaultPolicy));
+    
+    // Update ID, name, and timestamps
+    template.id = crypto.randomBytes(8).toString('hex');
+    template.name = name || 'Web Application Scan Template';
+    template.description = 'Optimized for testing web applications with user interfaces';
+    template.createdAt = Date.now();
+    template.updatedAt = Date.now();
+    
+    // Enable all vulnerability checks
+    Object.keys(template.vulnerabilityChecks).forEach(key => {
+      template.vulnerabilityChecks[key].enabled = true;
+    });
+    
+    // Modify technical options
+    template.technicalOptions.headlessBrowser.enabled = true;
+    template.technicalOptions.javascriptAnalysis.enabled = true;
+    template.technicalOptions.intelligentCrawling.enabled = true;
+    template.technicalOptions.intelligentCrawling.options.maxDepth = 4;
+    template.technicalOptions.intelligentCrawling.options.maxPages = 150;
+    template.technicalOptions.intelligentCrawling.options.clickElements = true;
+    template.technicalOptions.intelligentCrawling.options.fillForms = true;
+    
+    return template;
+  }
+
+  /**
+   * Validate a scan policy
+   * @param {Object} policy - Scan policy to validate
+   * @throws {Error} - If policy is invalid
+   */
+  validatePolicy(policy) {
+    // Check required fields
+    if (!policy.id) {
+      throw new Error('Policy ID is required');
+    }
+    
+    if (!policy.name) {
+      throw new Error('Policy name is required');
+    }
+    
+    // Check vulnerability checks
+    if (!policy.vulnerabilityChecks) {
+      throw new Error('Vulnerability checks are required');
+    }
+    
+    // Check technical options
+    if (!policy.technicalOptions) {
+      throw new Error('Technical options are required');
+    }
+    
+    // Check scan throttling
+    if (!policy.scanThrottling) {
+      throw new Error('Scan throttling options are required');
+    }
+    
+    // Check reporting
+    if (!policy.reporting) {
+      throw new Error('Reporting options are required');
+    }
+  }
+
+  /**
+   * Save policies to disk
+   */
+  savePolicies() {
+    try {
+      if (!this.options.logResults) {
+        return;
+      }
+      
+      const policiesFile = path.join(
+        this.options.logDirectory,
+        'scan_policies.json'
+      );
+      
+      const policiesData = Array.from(this.policies.values());
+      
+      fs.writeFileSync(policiesFile, JSON.stringify(policiesData, null, 2));
+    } catch (error) {
+      console.error('Error saving policies:', error);
+    }
+  }
+
+  /**
+   * Load policies from disk
+   */
+  loadPolicies() {
+    try {
+      if (!this.options.logResults) {
+        return;
+      }
+      
+      const policiesFile = path.join(
+        this.options.logDirectory,
+        'scan_policies.json'
+      );
+      
+      if (!fs.existsSync(policiesFile)) {
+        return;
+      }
+      
+      const policiesData = JSON.parse(fs.readFileSync(policiesFile, 'utf8'));
+      
+      for (const policy of policiesData) {
+        if (policy.id !== 'default') {
+          this.policies.set(policy.id, policy);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading policies:', error);
+    }
+  }
+
+  /**
+   * Apply a scan policy to a scanner configuration
+   * @param {string} policyId - Policy ID
+   * @param {Object} scannerConfig - Scanner configuration
+   * @returns {Object} - Updated scanner configuration
+   */
+  applyScanPolicy(policyId, scannerConfig) {
+    try {
+      if (!this.policies.has(policyId)) {
+        throw new Error(`Policy with ID ${policyId} not found`);
+      }
+      
+      const policy = this.policies.get(policyId);
+      
+      // Apply vulnerability check settings
+      if (scannerConfig.vulnerabilityChecks) {
+        for (const [checkName, checkConfig] of Object.entries(policy.vulnerabilityChecks)) {
+          if (scannerConfig.vulnerabilityChecks[checkName]) {
+            scannerConfig.vulnerabilityChecks[checkName] = {
+              ...scannerConfig.vulnerabilityChecks[checkName],
+              ...checkConfig
+            };
+          }
+        }
+      }
+      
+      // Apply technical options
+      if (scannerConfig.technicalOptions) {
+        for (const [optionName, optionConfig] of Object.entries(policy.technicalOptions)) {
+          if (scannerConfig.technicalOptions[optionName]) {
+            scannerConfig.technicalOptions[optionName] = {
+              ...scannerConfig.technicalOptions[optionName],
+              ...optionConfig
+            };
+          }
+        }
+      }
+      
+      // Apply scan throttling
+      if (scannerConfig.scanThrottling) {
+        scannerConfig.scanThrottling = {
+          ...scannerConfig.scanThrottling,
+          ...policy.scanThrottling
+        };
+      }
+      
+      // Apply reporting options
+      if (scannerConfig.reporting) {
+        scannerConfig.reporting = {
+          ...scannerConfig.reporting,
+          ...policy.reporting
+        };
+      }
+      
+      this.emit('policyApplied', {
+        policyId: policyId,
+        policyName: policy.name
+      });
+      
+      return scannerConfig;
+    } catch (error) {
+      this.emit('error', {
+        error: `Error applying scan policy: ${error.message}`
+      });
+      
+      throw error;
+    }
+  }
+}
+
+module.exports = CustomScanPolicy;

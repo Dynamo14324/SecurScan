@@ -541,5 +541,317 @@ class HttpRequestCrafter extends EventEmitter {
     
     // Add cookies if provided
     if (options.cookies) {
-      const cookieString = Object.entrie
-(Content truncated due to size limit. Use line ranges to read in chunks)
+      const cookieString = Object.entries(options.cookies)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('; ');
+      
+      config.headers['Cookie'] = cookieString;
+    }
+    
+    return config;
+  }
+
+  /**
+   * Process response
+   * @param {Object} response - Axios response object
+   * @returns {Object} - Processed response
+   */
+  processResponse(response) {
+    const contentType = response.headers['content-type'] || '';
+    let data = response.data;
+    
+    // Convert buffer to appropriate format based on content type
+    if (Buffer.isBuffer(data)) {
+      if (contentType.includes('json')) {
+        try {
+          data = JSON.parse(data.toString('utf8'));
+        } catch (error) {
+          // If parsing fails, keep the buffer
+          console.error('JSON parsing error:', error.message);
+        }
+      } else if (contentType.includes('text') || 
+                contentType.includes('xml') || 
+                contentType.includes('html') || 
+                contentType.includes('javascript') || 
+                contentType.includes('css')) {
+        data = data.toString('utf8');
+      }
+    }
+    
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      data: data,
+      cookies: this.parseCookies(response.headers['set-cookie']),
+      request: {
+        method: response.config.method.toUpperCase(),
+        url: response.config.url,
+        headers: response.config.headers
+      },
+      timing: {
+        startTime: response.config.startTime,
+        endTime: Date.now(),
+        duration: Date.now() - response.config.startTime
+      }
+    };
+  }
+
+  /**
+   * Handle request error
+   * @param {Error} error - Error object
+   * @param {string} method - HTTP method
+   * @param {string} url - Request URL
+   */
+  handleRequestError(error, method, url) {
+    const errorInfo = {
+      method: method,
+      url: url,
+      message: error.message,
+      code: error.code,
+      timestamp: Date.now()
+    };
+    
+    if (error.response) {
+      errorInfo.status = error.response.status;
+      errorInfo.statusText = error.response.statusText;
+      errorInfo.headers = error.response.headers;
+    }
+    
+    this.emit('requestError', errorInfo);
+  }
+
+  /**
+   * Parse cookies from Set-Cookie headers
+   * @param {Array|string} setCookieHeaders - Set-Cookie headers
+   * @returns {Object} - Parsed cookies
+   */
+  parseCookies(setCookieHeaders) {
+    if (!setCookieHeaders) {
+      return {};
+    }
+    
+    const cookies = {};
+    const cookieHeaders = Array.isArray(setCookieHeaders) ? setCookieHeaders : [setCookieHeaders];
+    
+    for (const header of cookieHeaders) {
+      const parts = header.split(';');
+      const cookiePart = parts[0];
+      const [name, value] = cookiePart.split('=');
+      
+      if (name && value) {
+        cookies[name.trim()] = value.trim();
+      }
+    }
+    
+    return cookies;
+  }
+
+  /**
+   * Log request
+   * @param {Object} config - Request configuration
+   */
+  logRequest(config) {
+    // Add start time to config for timing
+    config.startTime = Date.now();
+    
+    // Create request info object
+    const requestInfo = {
+      method: config.method.toUpperCase(),
+      url: config.url,
+      headers: config.headers,
+      params: config.params,
+      data: config.data,
+      timestamp: config.startTime
+    };
+    
+    // Add to request history
+    this.requestHistory.push(requestInfo);
+    
+    // Emit event
+    this.emit('request', requestInfo);
+    
+    // Log to file if enabled
+    if (this.options.logRequests) {
+      try {
+        const logFile = path.join(
+          this.options.logDirectory,
+          `request_${Date.now()}.json`
+        );
+        
+        // Clone request info to avoid circular references
+        const logData = { ...requestInfo };
+        
+        // Handle FormData
+        if (config.data instanceof FormData) {
+          logData.data = '[FormData]';
+        }
+        
+        fs.writeFileSync(logFile, JSON.stringify(logData, null, 2));
+      } catch (error) {
+        console.error('Request logging error:', error);
+      }
+    }
+  }
+
+  /**
+   * Log response
+   * @param {Object} response - Response object
+   */
+  logResponse(response) {
+    // Calculate request duration
+    const endTime = Date.now();
+    const duration = endTime - (response.config.startTime || endTime);
+    
+    // Create response info object
+    const responseInfo = {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      size: response.data ? (Buffer.isBuffer(response.data) ? response.data.length : JSON.stringify(response.data).length) : 0,
+      timing: {
+        startTime: response.config.startTime,
+        endTime: endTime,
+        duration: duration
+      },
+      request: {
+        method: response.config.method.toUpperCase(),
+        url: response.config.url,
+        headers: response.config.headers
+      },
+      timestamp: endTime
+    };
+    
+    // Add to response history
+    this.responseHistory.push(responseInfo);
+    
+    // Emit event
+    this.emit('response', responseInfo);
+    
+    // Log to file if enabled
+    if (this.options.logRequests) {
+      try {
+        const logFile = path.join(
+          this.options.logDirectory,
+          `response_${Date.now()}.json`
+        );
+        
+        fs.writeFileSync(logFile, JSON.stringify(responseInfo, null, 2));
+        
+        // Save response body to separate file if it's not too large
+        if (response.data) {
+          const bodyFile = path.join(
+            this.options.logDirectory,
+            `response_body_${Date.now()}`
+          );
+          
+          if (Buffer.isBuffer(response.data)) {
+            const contentType = response.headers['content-type'] || '';
+            
+            if (contentType.includes('text') || 
+                contentType.includes('json') || 
+                contentType.includes('xml') || 
+                contentType.includes('html') || 
+                contentType.includes('javascript') || 
+                contentType.includes('css')) {
+              fs.writeFileSync(bodyFile + '.txt', response.data.toString('utf8'));
+            } else {
+              fs.writeFileSync(bodyFile + '.bin', response.data);
+            }
+          } else if (typeof response.data === 'string') {
+            fs.writeFileSync(bodyFile + '.txt', response.data);
+          } else {
+            fs.writeFileSync(bodyFile + '.json', JSON.stringify(response.data, null, 2));
+          }
+        }
+      } catch (error) {
+        console.error('Response logging error:', error);
+      }
+    }
+  }
+
+  /**
+   * Get request history
+   * @param {Object} options - Options for filtering history
+   * @returns {Array} - Array of request history items
+   */
+  getRequestHistory(options = {}) {
+    let history = [...this.requestHistory];
+    
+    // Filter by URL
+    if (options.url) {
+      history = history.filter(item => item.url.includes(options.url));
+    }
+    
+    // Filter by method
+    if (options.method) {
+      history = history.filter(item => item.method === options.method.toUpperCase());
+    }
+    
+    // Filter by time range
+    if (options.startTime) {
+      history = history.filter(item => item.timestamp >= options.startTime);
+    }
+    
+    if (options.endTime) {
+      history = history.filter(item => item.timestamp <= options.endTime);
+    }
+    
+    // Limit number of items
+    if (options.limit) {
+      history = history.slice(0, options.limit);
+    }
+    
+    return history;
+  }
+
+  /**
+   * Get response history
+   * @param {Object} options - Options for filtering history
+   * @returns {Array} - Array of response history items
+   */
+  getResponseHistory(options = {}) {
+    let history = [...this.responseHistory];
+    
+    // Filter by URL
+    if (options.url) {
+      history = history.filter(item => item.request.url.includes(options.url));
+    }
+    
+    // Filter by method
+    if (options.method) {
+      history = history.filter(item => item.request.method === options.method.toUpperCase());
+    }
+    
+    // Filter by status
+    if (options.status) {
+      history = history.filter(item => item.status === options.status);
+    }
+    
+    // Filter by time range
+    if (options.startTime) {
+      history = history.filter(item => item.timestamp >= options.startTime);
+    }
+    
+    if (options.endTime) {
+      history = history.filter(item => item.timestamp <= options.endTime);
+    }
+    
+    // Limit number of items
+    if (options.limit) {
+      history = history.slice(0, options.limit);
+    }
+    
+    return history;
+  }
+
+  /**
+   * Clear request and response history
+   */
+  clearHistory() {
+    this.requestHistory = [];
+    this.responseHistory = [];
+  }
+}
+
+module.exports = HttpRequestCrafter;
